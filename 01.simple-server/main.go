@@ -3,8 +3,11 @@ package main
 import (
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -14,6 +17,7 @@ type ResponsePayload struct {
 	Host       string
 	RequestURI string
 	Time       string
+	Version    string
 }
 
 func rootRequestHandler(w http.ResponseWriter, r *http.Request) {
@@ -28,6 +32,7 @@ func rootRequestHandler(w http.ResponseWriter, r *http.Request) {
 		Host:       hostname,
 		RequestURI: r.URL.RequestURI(),
 		Time:       time.Now().Format(time.RFC3339),
+		Version:    "v2",
 	}
 	tmpl.Execute(w, data)
 }
@@ -35,8 +40,18 @@ func rootRequestHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	port := 8080
 	addr := fmt.Sprintf(":%d", port)
-	//Handlers
 	http.HandleFunc("/", rootRequestHandler)
-	//Start server
-	panic(http.ListenAndServe(addr, nil))
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		err := http.ListenAndServe(addr, nil)
+		if err != nil {
+			panic(err)
+		}
+	}()
+	log.Println("Server started...")
+
+	<-done
+	log.Print("Server Stopped")
 }
